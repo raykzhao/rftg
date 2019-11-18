@@ -26,7 +26,7 @@ AC_CHECK_LIB([m], [exp])
 AC_HEADER_STDC
 AC_CHECK_HEADERS([stdio.h])
 
-AM_PATH_GTK_2_0(2.16.0)
+PKG_CHECK_MODULES([GTK], [gtk+-2.0 >= 2.16.0])
 
 ### Check to see if GDK uses the quartz backend and if we can use MacOSX
 ### integration
