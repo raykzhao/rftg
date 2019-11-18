@@ -765,6 +765,9 @@ static gboolean message_view_expose(GtkWidget *text_view, GdkEventExpose *event,
 {
 	int x, y;
 	int w;
+	
+	GtkAllocation text_view_allocation;
+	cairo_t *cr;
 
 	/* Convert buffer coordinates to window coordinates */
 	gtk_text_view_buffer_to_window_coords(GTK_TEXT_VIEW(text_view),
@@ -775,11 +778,17 @@ static gboolean message_view_expose(GtkWidget *text_view, GdkEventExpose *event,
 	if (!y) return FALSE;
 
 	/* Get widget width */
-	w = text_view->allocation.width;
+	gtk_widget_get_allocation(text_view, &text_view_allocation);
+	w = text_view_allocation.width;
 
 	/* Draw line across window */
-	gdk_draw_line(event->window, text_view->style->black_gc, 0, y, w, y);
-
+	cr = gdk_cairo_create(event->window);
+	cairo_move_to(cr, 0, y);
+	cairo_line_to(cr, w, y);
+	cairo_set_source_rgb(cr, 0, 0, 0);
+	cairo_stroke(cr);	
+	cairo_destroy(cr);
+	
 	/* Continue handling event */
 	return FALSE;
 }
@@ -895,14 +904,17 @@ static void reset_text_separator(void)
 	GdkRectangle rect;
 	int x, y;
 
+	GtkAllocation message_view_allocation;
+
 	/* Convert current line coordinates to window coordinates */
 	gtk_text_view_buffer_to_window_coords(GTK_TEXT_VIEW(message_view),
 	                                      GTK_TEXT_WINDOW_WIDGET,
 	                                      0, message_last_y, &x, &y);
 
 	/* Invalidate old line */
+	gtk_widget_get_allocation(message_view, &message_view_allocation);	
 	gtk_widget_queue_draw_area(message_view, 0, y,
-	                           message_view->allocation.width, 1);
+	                           message_view_allocation.width, 1);
 
 	/* Get message buffer */
 	message_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(message_view));
@@ -1747,6 +1759,9 @@ static gboolean draw_extra_text(GtkWidget *image, GdkEventExpose *event,
 	int x = 0, y = 0;
 	struct extra_info *ei = (struct extra_info *)data;
 
+	GtkAllocation image_allocation;
+	cairo_t *cr;
+
 	/* Get window to draw on */
 	w = gtk_widget_get_window(image);
 
@@ -1769,24 +1784,34 @@ static gboolean draw_extra_text(GtkWidget *image, GdkEventExpose *event,
 	pango_layout_get_pixel_size(layout, &tw, &th);
 
 	/* Check for centered text */
+	gtk_widget_get_allocation(image, &image_allocation);
 	if (!ei->top_left)
 	{
 		/* Compute point to start drawing */
-		x = (image->allocation.width - tw) / 2 + image->allocation.x;
-		y = (image->allocation.height - th) / 2 + image->allocation.y;
+		x = (image_allocation.width - tw) / 2 + image_allocation.x;
+		y = (image_allocation.height - th) / 2 + image_allocation.y;
 	}
 
 	/* Draw border around text if asked */
+	cr = gdk_cairo_create(w);
 	if (ei->border)
 	{
-		gdk_draw_layout(w, image->style->white_gc, x - 1, y - 1,layout);
-		gdk_draw_layout(w, image->style->white_gc, x + 1, y + 1,layout);
-		gdk_draw_layout(w, image->style->white_gc, x + 1, y - 1,layout);
-		gdk_draw_layout(w, image->style->white_gc, x - 1, y + 1,layout);
+		cairo_set_source_rgb(cr, 255, 255, 255);
+		cairo_move_to(cr, x - 1, y - 1);
+		pango_cairo_show_layout(cr, layout);
+		cairo_move_to(cr, x + 1, y + 1);
+		pango_cairo_show_layout(cr, layout);
+		cairo_move_to(cr, x + 1, y - 1);
+		pango_cairo_show_layout(cr, layout);
+		cairo_move_to(cr, x - 1, y + 1);
+		pango_cairo_show_layout(cr, layout);
 	}
 
 	/* Draw layout on top of image */
-	gdk_draw_layout(w, image->style->black_gc, x, y, layout);
+	cairo_set_source_rgb(cr, 0, 0, 0);
+	cairo_move_to(cr, x, y);
+	pango_cairo_show_layout(cr, layout);
+	cairo_destroy(cr);
 
 	/* Free font description */
 	pango_font_description_free(font);
@@ -2288,6 +2313,8 @@ void redraw_hand(void)
 	int card_w, card_h;
 	int i, j, select_all_added = FALSE;
 
+	GtkAllocation hand_area_allocation;
+
 	/* Check if hand previously drawn */
 	if (hand_first_key != -1)
 	{
@@ -2336,8 +2363,9 @@ void redraw_hand(void)
 	}
 
 	/* Get hand area width and height */
-	width = hand_area->allocation.width;
-	height = hand_area->allocation.height;
+	gtk_widget_get_allocation(hand_area, &hand_area_allocation);
+	width = hand_area_allocation.width;
+	height = hand_area_allocation.height;
 
 	/* Get width of individual card */
 	card_w = width / 8;
@@ -2418,7 +2446,7 @@ void redraw_hand(void)
 				/* Add key handler for select all */
 				gtk_widget_add_accelerator(box, "key-select-all",
 				                           window_accel,
-				                           GDK_F12, 0, 0);
+				                           GDK_KEY_F12, 0, 0);
 
 				/* Connect key-select-all */
 				g_signal_connect(G_OBJECT(box), "key-select-all",
@@ -2428,7 +2456,7 @@ void redraw_hand(void)
 				/* Add key handler for deselect all */
 				gtk_widget_add_accelerator(box, "key-deselect-all",
 				                           window_accel,
-				                           GDK_F12, GDK_SHIFT_MASK, 0);
+				                           GDK_KEY_F12, GDK_SHIFT_MASK, 0);
 
 				/* Connect key-deselect-all */
 				g_signal_connect(G_OBJECT(box), "key-deselect-all",
@@ -2456,7 +2484,7 @@ void redraw_hand(void)
 					/* Add numeric key handler */
 					gtk_widget_add_accelerator(box, "key-signal",
 					                           window_accel,
-					                           GDK_1 + key_count, 0, 0);
+					                           GDK_KEY_1 + key_count, 0, 0);
 				}
 
 				/* Connect key-signal */
@@ -2497,6 +2525,8 @@ static void redraw_table_area(int who, GtkWidget *area)
 	int card_w, card_h;
 	int i, j, n;
 
+	GtkAllocation area_allocation;
+
 	/* First destroy all pre-existing card widgets */
 	gtk_container_foreach(GTK_CONTAINER(area), destroy_widget, NULL);
 
@@ -2507,8 +2537,9 @@ static void redraw_table_area(int who, GtkWidget *area)
 	if (n < 12) n = 12;
 
 	/* Get hand area width and height */
-	width = area->allocation.width;
-	height = area->allocation.height;
+	gtk_widget_get_allocation(area, &area_allocation);
+	width = area_allocation.width;
+	height = area_allocation.height;
 
 	/* Check for wide area */
 	if (width > height)
@@ -2664,7 +2695,7 @@ static void redraw_table_area(int who, GtkWidget *area)
 					/* Add numeric key handler */
 					gtk_widget_add_accelerator(box, "key-signal",
 					                           window_accel,
-					                           GDK_1 + key_count, 0, 0);
+					                           GDK_KEY_1 + key_count, 0, 0);
 				}
 
 				/* Connect key-signal */
@@ -2809,12 +2840,15 @@ void redraw_goal(void)
 	int i;
 	int width, height, goal_h, y = 0;
 
+	GtkAllocation goal_area_allocation;
+
 	/* First destroy all pre-existing goal widgets */
 	gtk_container_foreach(GTK_CONTAINER(goal_area), destroy_widget, NULL);
 
 	/* Get goal area width and height */
-	width = goal_area->allocation.width;
-	height = goal_area->allocation.height;
+	gtk_widget_get_allocation(goal_area, &goal_area_allocation);
+	width = goal_area_allocation.width;
+	height = goal_area_allocation.height;
 
 	/* Loop over goals */
 	for (i = 0; i < MAX_GOAL; i++)
@@ -4436,6 +4470,8 @@ static void redraw_status_area(int who, GtkWidget *box)
 	int i;
 	struct extra_info *ei;
 
+	GtkAllocation box_allocation;
+
 	/* Get information to display */
 	s_ptr = &status_player[who];
 
@@ -4449,7 +4485,8 @@ static void redraw_status_area(int who, GtkWidget *box)
 	gtk_box_pack_start(GTK_BOX(box), label, TRUE, TRUE, 0);
 
 	/* Get status area height */
-	height = box->allocation.height;
+	gtk_widget_get_allocation(box, &box_allocation);
+	height = box_allocation.height;
 
 	/* Check for online game */
 	if (client_state != CS_DISCONN)
@@ -5089,9 +5126,12 @@ static void table_request(GtkWidget *widget, GtkRequisition *requisition,
 {
 #if 0
 	int req_height;
+	
+	GtkAllocation widget_allocation;
 
 	/* Determine height to request */
-	req_height = (widget->allocation.width / 4) * CARD_HEIGHT / CARD_WIDTH;
+	gtk_widget_get_allocation(widget, &widget_allocation);
+	req_height = (widget_allocation.width / 4) * CARD_HEIGHT / CARD_WIDTH;
 
 	/* Request height to match width */
 	gtk_widget_set_size_request(widget, 0, req_height);
@@ -5109,8 +5149,11 @@ static void hand_request(GtkWidget *widget, GtkRequisition *requisition,
 {
 	int req_height;
 
+	GtkAllocation widget_allocation;
+
 	/* Determine height to request */
-	req_height = (widget->allocation.width / 8) * CARD_HEIGHT / CARD_WIDTH;
+	gtk_widget_get_allocation(widget, &widget_allocation);
+	req_height = (widget_allocation.width / 8) * CARD_HEIGHT / CARD_WIDTH;
 
 	/* Add 10% for sliding cards up */
 	req_height = 11 * req_height / 10;
@@ -6243,8 +6286,10 @@ static void combo_down(GtkWidget *widget, gpointer data)
 static void gui_choose_action(game *g, int who, int action[2], int one)
 {
 	GtkWidget *image, *label;
-	int i, a, h, n = 0, key = GDK_1, previous_action = -1;
+	int i, a, h, n = 0, key = GDK_KEY_1, previous_action = -1;
 	char* prompt;
+
+	GtkAllocation action_box_allocation;
 
 	/* Deactivate action button */
 	gtk_widget_set_sensitive(action_button, FALSE);
@@ -6294,7 +6339,8 @@ static void gui_choose_action(game *g, int who, int action[2], int one)
 	gtk_label_set_text(GTK_LABEL(action_prompt), prompt);
 
 	/* Get height of action box */
-	h = action_box->allocation.height - 10;
+	gtk_widget_get_allocation(action_box, &action_box_allocation);
+	h = action_box_allocation.height - 10;
 
 	/* Loop over actions */
 	for (i = 0; i < MAX_ACTION; i++)
@@ -6357,7 +6403,7 @@ static void gui_choose_action(game *g, int who, int action[2], int one)
 		if (client_state == CS_DISCONN)
 		{
 			/* XXX Wrap to '0' instead of ':' */
-			if (key == GDK_1 + 9) key = GDK_0;
+			if (key == GDK_KEY_1 + 9) key = GDK_KEY_0;
 
 			/* Add hander for numeric keypresses */
 			gtk_widget_add_accelerator(action_toggle[i], "key-signal",
@@ -6441,7 +6487,7 @@ static void gui_choose_action(game *g, int who, int action[2], int one)
 		{
 			/* Add 'P' keypress */
 			gtk_widget_add_accelerator(prestige_toggle, "key-signal",
-			                           window_accel, GDK_p, 0, 0);
+			                           window_accel, GDK_KEY_p, 0, 0);
 		}
 
 		/* Connect "pointer enter" signal */
@@ -7557,11 +7603,11 @@ void add_combo_accelerators(GtkWidget *combo, int size)
 {
 	/* Add handler for keypresses */
 	gtk_widget_add_accelerator(combo, "key-signal", window_accel,
-		GDK_F12, 0, 0);
+		GDK_KEY_F12, 0, 0);
 	gtk_widget_add_accelerator(combo, "up-signal", window_accel,
-		GDK_Up, GDK_SHIFT_MASK, 0);
+		GDK_KEY_Up, GDK_SHIFT_MASK, 0);
 	gtk_widget_add_accelerator(combo, "down-signal", window_accel,
-		GDK_Down, GDK_SHIFT_MASK, 0);
+		GDK_KEY_Down, GDK_SHIFT_MASK, 0);
 
 	/* Connect key signals */
 	g_signal_connect(G_OBJECT(combo), "key-signal",
@@ -7598,7 +7644,7 @@ void gui_choose_settle(game *g, int who, int cidx[], int oidx[], int *num,
 	gtk_label_set_text(GTK_LABEL(action_prompt), "Choose Settle power");
 
 	/* Create simple combo box */
-	combo = gtk_combo_box_new_text();
+	combo = gtk_combo_box_text_new();
 
 	/* Loop over powers */
 	for (i = 0; i < *num; i++)
@@ -7650,14 +7696,14 @@ void gui_choose_settle(game *g, int who, int cidx[], int oidx[], int *num,
 		}
 
 		/* Append option to combo box */
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo), buf);
+		gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), buf);
 	}
 
 	/* Append no choice option */
 	sprintf(buf, "None (done with Settle)");
 
 	/* Append option to combo box */
-	gtk_combo_box_append_text(GTK_COMBO_BOX(combo), buf);
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), buf);
 
 	/* Set first choice */
 	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);
@@ -8001,7 +8047,7 @@ void gui_choose_takeover_prevent(game *g, int who, int list[], int *num,
 	gtk_label_set_text(GTK_LABEL(action_prompt), buf);
 
 	/* Create simple combo box */
-	combo = gtk_combo_box_new_text();
+	combo = gtk_combo_box_text_new();
 
 	/* Loop over powers */
 	for (i = 0; i < *num; i++)
@@ -8017,14 +8063,14 @@ void gui_choose_takeover_prevent(game *g, int who, int list[], int *num,
 		                            b_ptr->d_ptr->name);
 
 		/* Append option to combo box */
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo), buf);
+		gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), buf);
 	}
 
 	/* Add choice for no prevention */
 	sprintf(buf, "None (allow all takeovers)");
 
 	/* Append option to combo box */
-	gtk_combo_box_append_text(GTK_COMBO_BOX(combo), buf);
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), buf);
 
 	/* Set last choice */
 	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), *num);
@@ -8434,7 +8480,7 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 	gtk_label_set_text(GTK_LABEL(action_prompt), "Choose Consume power");
 
 	/* Create simple combo box */
-	combo = gtk_combo_box_new_text();
+	combo = gtk_combo_box_text_new();
 
 	/* Loop over powers */
 	for (i = 0; i < *num; i++)
@@ -8644,7 +8690,7 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 		}
 
 		/* Append option to combo box */
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo), buf);
+		gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), buf);
 	}
 
 	/* Check for all optional powers */
@@ -8654,7 +8700,7 @@ void gui_choose_consume(game *g, int who, int cidx[], int oidx[], int *num,
 		sprintf(buf, "None (done with Consume)");
 
 		/* Append option to combo box */
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo), buf);
+		gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), buf);
 	}
 
 	/* Set first choice */
@@ -9344,7 +9390,7 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 	gtk_label_set_text(GTK_LABEL(action_prompt), "Choose Produce power");
 
 	/* Create simple combo box */
-	combo = gtk_combo_box_new_text();
+	combo = gtk_combo_box_text_new();
 
 	/* Loop over powers */
 	for (i = 0; i < num; i++)
@@ -9461,7 +9507,7 @@ void gui_choose_produce(game *g, int who, int cidx[], int oidx[], int num)
 		buf[0] = toupper(buf[0]);
 
 		/* Append option to combo box */
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo), buf);
+		gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), buf);
 	}
 
 	/* Set first choice */
@@ -9640,7 +9686,7 @@ int gui_choose_search_type(game *g, int who)
 	gtk_label_set_text(GTK_LABEL(action_prompt), "Choose Search category");
 
 	/* Create simple combo box */
-	combo = gtk_combo_box_new_text();
+	combo = gtk_combo_box_text_new();
 
 	/* Loop over search categories */
 	for (i = 0; i < MAX_SEARCH; i++)
@@ -9656,7 +9702,7 @@ int gui_choose_search_type(game *g, int who)
 		buf[0] = toupper(buf[0]);
 
 		/* Append option to combo box */
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo), buf);
+		gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), buf);
 	}
 
 	/* Set first choice */
@@ -9735,12 +9781,12 @@ int gui_choose_search_keep(game *g, int who, int arg1, int arg2)
 	i_ptr->color = 1;
 
 	/* Create simple combo box */
-	combo = gtk_combo_box_new_text();
+	combo = gtk_combo_box_text_new();
 
 	/* Append options to combo box */
-	gtk_combo_box_append_text(GTK_COMBO_BOX(combo),
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo),
 	                          "Discard (keep searching)");
-	gtk_combo_box_append_text(GTK_COMBO_BOX(combo), "Keep card");
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), "Keep card");
 
 	/* Set first choice */
 	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);
@@ -9795,13 +9841,13 @@ int gui_choose_oort_kind(game *g, int who)
 	gtk_widget_set_sensitive(action_button, TRUE);
 
 	/* Create simple combo box */
-	combo = gtk_combo_box_new_text();
+	combo = gtk_combo_box_text_new();
 
 	/* Append options to combo box */
-	gtk_combo_box_append_text(GTK_COMBO_BOX(combo), "Novelty");
-	gtk_combo_box_append_text(GTK_COMBO_BOX(combo), "Rare");
-	gtk_combo_box_append_text(GTK_COMBO_BOX(combo), "Genes");
-	gtk_combo_box_append_text(GTK_COMBO_BOX(combo), "Alien");
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), "Novelty");
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), "Rare");
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), "Genes");
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), "Alien");
 
 	/* Set first choice */
 	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);
@@ -10497,7 +10543,7 @@ void modify_gui(int reset_card)
 	for ( ; i < MAX_PLAYER; i++)
 	{
 		/* Hide status */
-		gtk_widget_hide_all(player_box[i]);
+		gtk_widget_hide(player_box[i]);
 	}
 
 	/* Show/hide separators */
@@ -12094,13 +12140,13 @@ static void select_campaign(GtkMenuItem *menu_item, gpointer data)
 	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
 
 	/* Set spacing */
-	gtk_box_set_spacing(GTK_BOX(GTK_DIALOG(dialog)->vbox), 5);
+	gtk_box_set_spacing(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), 5);
 
 	/* Create combo box */
-	combo = gtk_combo_box_new_text();
+	combo = gtk_combo_box_text_new();
 
 	/* Add "no campaign" option */
-	gtk_combo_box_append_text(GTK_COMBO_BOX(combo), "None");
+	gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo), "None");
 
 	/* Assume no campaign */
 	gtk_combo_box_set_active(GTK_COMBO_BOX(combo), 0);
@@ -12109,7 +12155,7 @@ static void select_campaign(GtkMenuItem *menu_item, gpointer data)
 	for (i = 0; i < num_campaign; i++)
 	{
 		/* Add campaign name to combo box */
-		gtk_combo_box_append_text(GTK_COMBO_BOX(combo),
+		gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo),
 		                          camp_library[i].name);
 
 		/* Check for currently active */
@@ -12122,13 +12168,13 @@ static void select_campaign(GtkMenuItem *menu_item, gpointer data)
 	}
 
 	/* Add combo box to dialog */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), combo);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), combo);
 
 	/* Create frame to hold campaign description */
 	frame = gtk_frame_new("Campaign description");
 
 	/* Add frame to dialog */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), frame);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), frame);
 
 	/* Add campaign description label */
 	campaign_desc = gtk_label_new("");
@@ -12407,7 +12453,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_box_pack_start(GTK_BOX(name_box), name_entry, FALSE, TRUE, 0);
 
 	/* Pack name box into dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), name_box);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), name_box);
 
 	/* Create vbox to hold expansion selection radio buttons */
 	exp_box = gtk_vbox_new(FALSE, 0);
@@ -12452,7 +12498,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(exp_frame), exp_box);
 
 	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), exp_frame);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), exp_frame);
 
 	/* Create vbox to hold player selection radio buttons */
 	player_box = gtk_vbox_new(FALSE, 0);
@@ -12497,7 +12543,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(player_frame), player_box);
 
 	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), player_frame);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), player_frame);
 
 	/* Create vbox to hold options widgets */
 	options_box = gtk_vbox_new(FALSE, 0);
@@ -12551,7 +12597,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(options_frame), options_box);
 
 	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), options_frame);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), options_frame);
 
 	/* Create campaign label */
 	campaign_label = gtk_label_new((opt.campaign_name && strcmp(opt.campaign_name, "")) ? opt.campaign_name : "None");
@@ -12580,7 +12626,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	campaign_frame = gtk_frame_new("Campaign");
 
 	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), campaign_frame);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), campaign_frame);
 
 	/* Pack box into frame */
 	gtk_container_add(GTK_CONTAINER(campaign_frame), campaign_box);
@@ -12637,7 +12683,7 @@ static void gui_new_parameters(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(seed_frame), seed_box);
 
 	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), seed_frame);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), seed_frame);
 
 	/* Update sensitivites */
 	update_sensitivity();
@@ -12782,7 +12828,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	                                     GTK_RESPONSE_REJECT, NULL);
 
 	/* Make some space */
-	gtk_box_set_spacing(GTK_BOX(GTK_DIALOG(dialog)->vbox), 4);
+	gtk_box_set_spacing(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), 4);
 
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
@@ -12884,7 +12930,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(status_frame), status_box);
 
 	/* Add status fram to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
 	                  status_frame);
 
 	/* ---- Game view ---- */
@@ -12973,7 +13019,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(game_view_frame), game_view_box);
 
 	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
 	                  game_view_frame);
 
 	/* ---- Interface options ---- */
@@ -13003,7 +13049,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(interface_frame), interface_box);
 
 	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
 	                  interface_frame);
 
 	/* ---- Log options ---- */
@@ -13049,7 +13095,7 @@ static void gui_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(log_frame), log_box);
 
 	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
 	                  log_frame);
 
 	/* ---- End ---- */
@@ -13133,7 +13179,7 @@ static void advanced_options(GtkMenuItem *menu_item, gpointer data)
 	                                     GTK_RESPONSE_REJECT, NULL);
 
 	/* Make some space */
-	gtk_box_set_spacing(GTK_BOX(GTK_DIALOG(dialog)->vbox), 4);
+	gtk_box_set_spacing(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), 4);
 
 	/* Set window title */
 	gtk_window_set_title(GTK_WINDOW(dialog), TITLE);
@@ -13171,7 +13217,7 @@ static void advanced_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(autosave_frame), autosave_box);
 
 	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
 	                  autosave_frame);
 
 	/* ---- Export options ---- */
@@ -13254,7 +13300,7 @@ static void advanced_options(GtkMenuItem *menu_item, gpointer data)
 	gtk_container_add(GTK_CONTAINER(export_frame), export_box);
 
 	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox),
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))),
 	                  export_frame);
 
 	/* ---- End ---- */
@@ -13713,7 +13759,7 @@ static void debug_card_dialog(GtkMenuItem *menu_item, gpointer data)
 	                               GTK_POLICY_ALWAYS);
 
 	/* Add scrollable list view to dialog */
-	gtk_box_pack_start(GTK_BOX(GTK_DIALOG(dialog)->vbox), list_scroll,
+	gtk_box_pack_start(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), list_scroll,
 	                   TRUE, TRUE, 0);
 
 	/* Show everything */
@@ -13886,7 +13932,7 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 	label = gtk_label_new("Role choice probabilities:");
 
 	/* Pack label */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), label);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), label);
 
 	/* Create table for role probabilities */
 	table = gtk_table_new(real_game.num_players + 1, num_action + 1, FALSE);
@@ -13931,13 +13977,13 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 	}
 
 	/* Add table to dialog */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), table);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), table);
 
 	/* Create label */
 	label = gtk_label_new("Win probabilities:");
 
 	/* Pack label */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), label);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), label);
 
 	/* Create table for win probabilities */
 	table = gtk_table_new(real_game.num_players + 1,
@@ -13983,13 +14029,13 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 	}
 
 	/* Add table to dialog */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), table);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), table);
 
 	/* Create label */
 	label = gtk_label_new("Action scores:");
 
 	/* Pack label */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), label);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), label);
 
 	/* Create table for role probabilities */
 	table = gtk_table_new(real_game.num_players + 1, num_action + 1, FALSE);
@@ -14034,7 +14080,7 @@ static void debug_ai_dialog(GtkMenuItem *menu_item, gpointer data)
 	}
 
 	/* Add table to dialog */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), table);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), table);
 
 	/* Show everything */
 	gtk_widget_show_all(dialog);
@@ -14905,7 +14951,7 @@ int main(int argc, char *argv[])
 	goal_area = gtk_fixed_new();
 
 	/* Give widget its own window */
-	gtk_fixed_set_has_window(GTK_FIXED(goal_area), TRUE);
+	gtk_widget_set_has_window(goal_area, TRUE);
 
 	/* Set goal area minimum width */
 	gtk_widget_set_size_request(goal_area, 70, 0);
@@ -14945,7 +14991,7 @@ int main(int argc, char *argv[])
 		orig_area[i] = area;
 
 		/* Give widget its own window */
-		gtk_fixed_set_has_window(GTK_FIXED(area), TRUE);
+		gtk_widget_set_has_window(area, TRUE);
 
 		/* Lookup player's color */
 		gdk_color_parse(player_colors[i], &color);
@@ -15055,14 +15101,14 @@ int main(int argc, char *argv[])
 
 	/* Also attach Shift+Enter */
 	gtk_widget_add_accelerator(GTK_WIDGET(action_button), "clicked",
-	                           window_accel, GDK_Return, GDK_SHIFT_MASK, 0);
+	                           window_accel, GDK_KEY_Return, GDK_SHIFT_MASK, 0);
 
 	/* Also attach Shift+Space */
 	gtk_widget_add_accelerator(GTK_WIDGET(action_button), "clicked",
-	                           window_accel, GDK_space, GDK_SHIFT_MASK, 0);
+	                           window_accel, GDK_KEY_space, GDK_SHIFT_MASK, 0);
 
 	/* Set CAN_DEFAULT flag on action button */
-	GTK_WIDGET_SET_FLAGS(action_button, GTK_CAN_DEFAULT);
+	gtk_widget_set_can_default(action_button, TRUE);
 
 	/* Set action button as default widget */
 	gtk_window_set_default(GTK_WINDOW(window), action_button);
@@ -15232,7 +15278,7 @@ int main(int argc, char *argv[])
 
 	/* Add handler for keypresses */
 	gtk_widget_add_accelerator(create_button, "key-signal",
-	                           window_accel, GDK_r, GDK_CONTROL_MASK, 0);
+	                           window_accel, GDK_KEY_r, GDK_CONTROL_MASK, 0);
 
 	/* Connect key-signal */
 	g_signal_connect(G_OBJECT(create_button), "key-signal",
@@ -15247,7 +15293,7 @@ int main(int argc, char *argv[])
 
 	/* Add handler for keypresses */
 	gtk_widget_add_accelerator(join_button, "key-signal",
-	                           window_accel, GDK_j, GDK_CONTROL_MASK, 0);
+	                           window_accel, GDK_KEY_j, GDK_CONTROL_MASK, 0);
 
 	/* Connect key-signal */
 	g_signal_connect(G_OBJECT(join_button), "key-signal",
@@ -15262,7 +15308,7 @@ int main(int argc, char *argv[])
 
 	/* Add handler for keypresses */
 	gtk_widget_add_accelerator(leave_button, "key-signal",
-	                           window_accel, GDK_l, GDK_CONTROL_MASK, 0);
+	                           window_accel, GDK_KEY_l, GDK_CONTROL_MASK, 0);
 
 	/* Connect key-signal */
 	g_signal_connect(G_OBJECT(leave_button), "key-signal",
@@ -15277,7 +15323,7 @@ int main(int argc, char *argv[])
 
 	/* Add handler for keypresses */
 	gtk_widget_add_accelerator(kick_button, "key-signal",
-	                           window_accel, GDK_k, GDK_CONTROL_MASK, 0);
+	                           window_accel, GDK_KEY_k, GDK_CONTROL_MASK, 0);
 
 	/* Connect key-signal */
 	g_signal_connect(G_OBJECT(kick_button), "key-signal",
@@ -15292,7 +15338,7 @@ int main(int argc, char *argv[])
 
 	/* Add handler for keypresses */
 	gtk_widget_add_accelerator(addai_button, "key-signal",
-	                           window_accel, GDK_i, GDK_CONTROL_MASK, 0);
+	                           window_accel, GDK_KEY_i, GDK_CONTROL_MASK, 0);
 
 	/* Connect key-signal */
 	g_signal_connect(G_OBJECT(addai_button), "key-signal",
@@ -15307,7 +15353,7 @@ int main(int argc, char *argv[])
 
 	/* Add handler for keypresses */
 	gtk_widget_add_accelerator(start_button, "key-signal",
-	                           window_accel, GDK_s, GDK_CONTROL_MASK, 0);
+	                           window_accel, GDK_KEY_s, GDK_CONTROL_MASK, 0);
 
 	/* Connect key-signal */
 	g_signal_connect(G_OBJECT(start_button), "key-signal",

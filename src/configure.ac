@@ -26,11 +26,11 @@ AC_CHECK_LIB([m], [exp])
 AC_HEADER_STDC
 AC_CHECK_HEADERS([stdio.h])
 
-PKG_CHECK_MODULES([GTK], [gtk+-2.0 >= 2.16.0])
+PKG_CHECK_MODULES([GTK], [gtk+-3.0])
 
 ### Check to see if GDK uses the quartz backend and if we can use MacOSX
 ### integration
-_gdk_tgt=`$PKG_CONFIG --variable=target gdk-2.0`
+_gdk_tgt=`$PKG_CONFIG --variable=target gdk-3.0`
 AM_CONDITIONAL([GDK_TARGET_QUARTZ], [test x$_gdk_tgt = xquartz])
 if test "x$_gdk_tgt" = xquartz; then
 	PKG_CHECK_MODULES(GTK_MAC, gtk-mac-integration)

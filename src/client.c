@@ -2349,7 +2349,7 @@ with the password you enter.");
 	gtk_table_attach_defaults(GTK_TABLE(table), login_status, 0, 4, 5, 6);
 
 	/* Add table to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), table);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), table);
 
 	/* Connect the entries' activate signal to the accept response on the dialog */
 	g_signal_connect(G_OBJECT(server), "activate",
@@ -2923,7 +2923,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	gtk_table_attach_defaults(GTK_TABLE(table), pass, 1, 2, 1, 2);
 
 	/* Add table to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), table);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), table);
 
 	/* Create vbox to hold expansion selection radio buttons */
 	exp_box = gtk_vbox_new(FALSE, 0);
@@ -2977,7 +2977,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	gtk_container_add(GTK_CONTAINER(exp_frame), exp_box);
 
 	/* Add expansion frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), exp_frame);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), exp_frame);
 
 	/* Create a table for laying out player number widgets */
 	table = gtk_table_new(2, 2, FALSE);
@@ -3029,7 +3029,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	gtk_container_add(GTK_CONTAINER(player_frame), player_box);
 
 	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), player_frame);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), player_frame);
 
 	/* Create vbox to hold options widgets */
 	options_box = gtk_vbox_new(FALSE, 0);
@@ -3078,7 +3078,7 @@ void create_dialog(GtkButton *button, gpointer data)
 	gtk_container_add(GTK_CONTAINER(options_frame), options_box);
 
 	/* Add frame to dialog box */
-	gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), options_frame);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), options_frame);
 
 	/* Update sensitivities */
 	update_sensitivity();
@@ -3259,7 +3259,7 @@ void join_game(GtkButton *button, gpointer data)
 		gtk_box_pack_start(GTK_BOX(hbox), password, TRUE, TRUE, 0);
 
 		/* Add hbox to dialog */
-		gtk_container_add(GTK_CONTAINER(GTK_DIALOG(dialog)->vbox), hbox);
+		gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), hbox);
 
 		/* Connect the entry's activate signal to the accept response on the dialog */
 		g_signal_connect(G_OBJECT(password), "activate", G_CALLBACK(enter_callback),
